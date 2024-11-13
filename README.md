@@ -6,6 +6,9 @@
 [![GitHub last commit (by committer)](https://img.shields.io/github/last-commit/chenmozhijin/OpenWrt-K)](https://github.com/chenmozhijin/OpenWrt-K/commits)
 [![Workflow Status](https://github.com/chenmozhijin/OpenWrt-K/actions/workflows/build-openwrt.yml/badge.svg)](https://github.com/chenmozhijin/OpenWrt-K/actions)
 > OpenWRT软件包与固件自动云编译
+1. 增加luci-app-wireguard與依賴項
+2. 新增映像大小到6GB
+3. 更換ip為`192.168.10.1`
 
 ## 目录
 
