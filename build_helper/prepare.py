@@ -86,9 +86,16 @@ def get_matrix(configs: dict[str, dict]) -> str:
 
 def clone(repo: str, path: str, branch: str | None) -> tuple[str, str | None, str]:
     logger.info("开始克隆仓库 %s", repo if not branch else f"{repo} (分支: {branch})")
-    pygit2.clone_repository(repo, path, checkout_branch=branch if branch else None, depth=1)
-    logger.info("仓库 %s 克隆完成", repo if not branch else f"{repo} (分支: {branch})")
-    return repo, branch, path
+    try:
+        pygit2.clone_repository(repo, path, checkout_branch=branch if branch else None, depth=1)
+    except pygit2.GitError as e:
+        repo_desc = repo if not branch else f"{repo} (分支: {branch})"
+        error_msg = f"克隆仓库失败: {repo_desc} - {e!s}"
+        logger.error(error_msg)
+        raise RuntimeError(error_msg) from None
+    else:
+        logger.info("仓库 %s 克隆完成", repo if not branch else f"{repo} (分支: {branch})")
+        return repo, branch, path
 
 def prepare(configs: dict[str, dict[str, Any]]) -> None:
     # clone拓展软件源码
