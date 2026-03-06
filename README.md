@@ -54,7 +54,7 @@
   luci-app-fileassistant：文件助手  
   luci-app-firewall：防火墙  
   luci-app-netdata：[Netdata](https://github.com/netdata/netdata) 实时监控  
-  [luci-app-netspeedtest](https://github.com/sirpdboy/netspeedtest)：网速测试  
+  [luci-app-netspeedtest](https://github.com/muink/luci-app-netspeedtest)：网速测试  
   luci-app-nlbwmon：网络带宽监视器  
   luci-app-opkg：软件包  
   [luci-app-openclash](https://github.com/vernesong/OpenClash):可运行在 OpenWrt 上的 Clash 客户端  
