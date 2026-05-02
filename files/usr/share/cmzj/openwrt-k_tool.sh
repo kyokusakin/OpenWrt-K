@@ -86,6 +86,41 @@ github_check_failed(){
     exit 1
 }
 
+has_package() {
+    apk info -e "$1" >/dev/null 2>&1
+}
+
+package_version() {
+    apk info -v "$1" 2>/dev/null | sed -n "1{s/^$1-//;p;q;}"
+}
+
+manifest_version_for() {
+    while IFS=' ' read -r name version; do
+        [ "$name" = "$1" ] && {
+            echo "$version"
+            return 0
+        }
+    done < "$2"
+    return 1
+}
+
+update_target_version_for() {
+    while IFS=' ' read -r name version; do
+        [ "$name" = "$1" ] && {
+            echo "$version"
+            return 0
+        }
+    done < "$2"
+    return 1
+}
+
+parse_apk_metadata() {
+    apk adbdump "$1" > "$TMPDIR/update/package/apk.meta" 2>/dev/null || return 1
+    APK_META_NAME=$(sed -n -e 's/^P://p' -e 's/^pkgname = //p' "$TMPDIR/update/package/apk.meta" | sed -n '1p')
+    APK_META_VERSION=$(sed -n -e 's/^V://p' -e 's/^pkgver = //p' "$TMPDIR/update/package/apk.meta" | sed -n '1p')
+    [ -n "$APK_META_NAME" ] && [ -n "$APK_META_VERSION" ]
+}
+
 update_rule(){
     check_github
     if ! type base64;then
@@ -96,7 +131,7 @@ update_rule(){
         echo "错误:未检测到依赖的包sed" 
         exit 1
     fi
-    if [ "$( opkg list-installed 2>/dev/null| grep -c "^aria2")" -ne '0' ];then
+    if has_package aria2;then
         echo "开始更新aria2 BT Tracker" 
         export bt_tracker="$(curl -s -L --retry 3 --connect-timeout 20 https://github.com/XIU2/TrackersListCollection/raw/master/all_aria2.txt || curl  -s -L --retry 3 https://cf.trackerslist.com/all_aria2.txt)"
         if [ -z $bt_tracker ];then
@@ -109,7 +144,7 @@ update_rule(){
     else
         echo "未检测到aria2，跳过更新aria2 BT Tracker" 
     fi
-    if [ "$( opkg list-installed 2>/dev/null| grep -c "^luci-app-adguardhome")" -ne '0' ] && [ "$( opkg list-installed 2>/dev/null| grep -c "^smartdns")" -ne '0' ];then
+    if has_package luci-app-adguardhome && has_package smartdns;then
         echo "开始更新adguardhome上游 DNS 服务器分流规则（/etc/AdGuardHome-dnslist(by cmzj).yaml)" 
         mkdir -p $TMPDIR/update/rule/adguardhome
         cd $TMPDIR/update/rule/adguardhome
@@ -121,7 +156,7 @@ update_rule(){
     else
         echo "未检测到luci-app-adguardhome与smartdns或其中之一，跳过更新adguardhome上游 DNS 服务器分流规则" 
     fi
-    if [ "$( opkg list-installed 2>/dev/null| grep -c "^luci-app-openclash")" -ne '0' ] ;then
+    if has_package luci-app-openclash ;then
         echo "开始更新openclash直连规则(by 沉默の金)与代理规则(by 沉默の金)"
         mkdir -p $TMPDIR/update/rule/openclash
         cd $TMPDIR/update/rule/openclash
@@ -177,19 +212,19 @@ update_package() {
         echo "错误:未检测到依赖的包sed" 
         exit 1
     fi
-    if ! type diff;then
-        echo "错误:未检测到依赖的包diffutils" 
-        exit 1
-    fi
     if ! type unzip;then
         echo "错误:未检测到依赖的包unzip" 
         exit 1
-    fi    
+    fi
+    if ! type apk;then
+        echo "错误:未检测到依赖的包管理器apk"
+        exit 1
+    fi
     check_github
     mkdir -p $TMPDIR/update/package
     cd $TMPDIR/update/package
     [[ -d $TMPDIR ]] && rm -rf $TMPDIR/update/package/* || exit 1
-    opkg list-installed > installed.list
+    apk info > installed.list
     if  [ ! -e "/etc/openwrt-k_info" ]; then
         echo "错误：未找到openwrt-k_info"
         exit 1
@@ -206,18 +241,39 @@ update_package() {
     latest_ver="$(curl -s https://api.github.com/repos/$REPOSITORY/releases 2>/dev/null | grep -E 'tag_name' | grep "$TAG_SUFFIX" | sed -e 's/    "tag_name": "//' -e 's/",//' | sed -n '1p')"
     FILE_NAME=$(curl -s "https://api.github.com/repos/$REPOSITORY/releases/tags/$latest_ver"| grep -E 'name'| grep -E '\.manifest'| sed -e 's/      "name": "//' -e 's/",//' | sed -n '1p')
     curl -L --retry 3 --connect-timeout 20 $REPOSITORY_URL/releases/download/${latest_ver}/$FILE_NAME -o package.list || download_failed
-    if ! diff installed.list package.list -y -W 80 -B -b | grep  '|' |sed -e "s/^/update:/g" -e 's/|/>/g' -e "/kmod-/d" > update.list; then
+    : > manifest.list
+    while IFS= read -r line; do
+        set -- $line
+        [ $# -lt 2 ] && continue
+        if [ "$2" = "-" ]; then
+            [ $# -lt 3 ] && continue
+            printf '%s %s\n' "$1" "$3" >> manifest.list
+        else
+            printf '%s %s\n' "$1" "$2" >> manifest.list
+        fi
+    done < package.list
+    : > update.list
+    : > update_target.list
+    while IFS= read -r package_name; do
+        target_version=$(manifest_version_for "$package_name" manifest.list) || continue
+        case "$package_name" in
+            kmod-*)
+                continue
+                ;;
+        esac
+        current_version=$(package_version "$package_name")
+        [ -z "$current_version" ] && continue
+        if [ "$current_version" != "$target_version" ]; then
+            printf 'update:%s %s -> %s\n' "$package_name" "$current_version" "$target_version" >> update.list
+            printf '%s %s\n' "$package_name" "$target_version" >> update_target.list
+        fi
+    done < installed.list
+    if [ ! -s update_target.list ]; then
         echo "没有可更新的包"
         exit 0
     else
-        if [ -z "$(cat update.list)" ]; then
-            echo "没有可更新的包"
-            exit 0  
-        else
-            echo "将更新以下包："
-            cat update.list
-            diff installed.list package.list -y -W 80 -B -b | grep  '|' | sed -e "s/ -.*//g" -e "s/ //g" -e "s/$/_/g" > update_package.list
-        fi
+        echo "将更新以下包："
+        cat update.list
     fi
     echo "这将下载releases中的package.zip请确保你有足够的空间与良好的网络"
     read -n1 -p "是否继续 [Y/N]?" answer
@@ -255,10 +311,38 @@ update_package() {
     esac
     [[ -d /usr/share/cmzj/download/ ]] && rm -rf /usr/share/cmzj/download/*
     curl -L --retry 3 --connect-timeout 20 $REPOSITORY_URL/releases/download/${latest_ver}/packages.zip -o $DOWNLOAD_PATH || download_failed
-    unzip -l $DOWNLOAD_PATH |grep "-"|grep ":"|grep " "|sed "s/.*[0-9][0-9]-[0-9]\{1,2\}-[0-9]\{1,5\} [0-9]\{1,2\}:[0-9]\{1,2\}   //g"|sed "s/ //g" > newpackage.list
-    unzip $DOWNLOAD_PATH $(grep "$(cat update_package.list)" newpackage.list | sed ':label;N;s/\n/ /;b label') -d $TMPDIR/update/package
+    unzip -oq $DOWNLOAD_PATH -d $TMPDIR/update/package/package || download_failed
     rm -rf /usr/share/cmzj/download $TMPDIR/update/package/download
-    if opkg install $TMPDIR/update/package/package/* ; then
+    find "$TMPDIR/update/package/package" -type f -name "*.apk" > apk_files.list
+    if [ ! -s apk_files.list ]; then
+        echo "错误: packages.zip 中未找到 .apk 包"
+        exit 1
+    fi
+    : > matched_files.list
+    : > matched_target.list
+    while IFS= read -r apk_file; do
+        parse_apk_metadata "$apk_file" || continue
+        target_version=$(update_target_version_for "$APK_META_NAME" update_target.list) || continue
+        if [ "$APK_META_VERSION" = "$target_version" ]; then
+            printf '%s\n' "$apk_file" >> matched_files.list
+            printf '%s %s\n' "$APK_META_NAME" "$APK_META_VERSION" >> matched_target.list
+        fi
+    done < apk_files.list
+    while IFS=' ' read -r package_name target_version; do
+        if ! grep -Fx "$package_name $target_version" matched_target.list >/dev/null 2>&1; then
+            echo "错误: packages.zip 中未找到 $package_name $target_version 对应的 .apk"
+            exit 1
+        fi
+    done < update_target.list
+    set --
+    while IFS= read -r apk_file; do
+        set -- "$@" "$apk_file"
+    done < matched_files.list
+    if [ "$#" -eq 0 ]; then
+        echo "错误: 没有匹配到需要安装的 .apk 包"
+        exit 1
+    fi
+    if apk add --allow-untrusted "$@" ; then
         echo "安装成功"        
     else
         echo "安装失败"

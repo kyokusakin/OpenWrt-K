@@ -1,14 +1,23 @@
 #!/bin/sh
+
+has_package() {
+  if command -v apk >/dev/null 2>&1; then
+    apk info -e "$1" >/dev/null 2>&1
+  else
+    opkg list-installed 2>/dev/null | grep -Eq "^$1( - |$)"
+  fi
+}
+
 uci set network.lan.ipaddr="192.168.1.1"
 uci commit network
 /etc/init.d/network restart
 sed -i "/^DISTRIB_DESCRIPTION='/s/'$/ Compiled by 沉默の金'/" /etc/openwrt_release
 [ -d "/etc/init.d" ] && chmod +x /etc/init.d/*
 [ -e "/usr/bin/AdGuardHome/AdGuardHome" ] && chmod 755 /usr/bin/AdGuardHome/AdGuardHome
-until [ "$( opkg list-installed 2>/dev/null| grep -c "^kernel")" -ne '0' ]; do
+until has_package kernel; do
   sleep 1
 done
-if [ "$( opkg list-installed 2>/dev/null| grep -c "^smartdns")" -ne '0' ] && [ ! "$(uci -q get smartdns.@server[0].name)" = "清华大学TUNA协会" ];then
+if has_package smartdns && [ ! "$(uci -q get smartdns.@server[0].name)" = "清华大学TUNA协会" ];then
   uci set smartdns.@smartdns[0].prefetch_domain='1'
   uci set smartdns.@smartdns[0].port='6053'
   uci set smartdns.@smartdns[0].seconddns_port='5335'
@@ -213,7 +222,7 @@ if [ "$( opkg list-installed 2>/dev/null| grep -c "^smartdns")" -ne '0' ] && [ !
   uci commit smartdns
   /etc/init.d/smartdns restart
 fi
-if [ "$( opkg list-installed 2>/dev/null| grep -c "^luci-app-adguardhome")" -ne '0' ];then
+if has_package luci-app-adguardhome;then
 uci batch << EOI
 set AdGuardHome.AdGuardHome.enabled='1'
 set AdGuardHome.AdGuardHome.httpport='3000'
@@ -228,7 +237,7 @@ EOI
   uci commit AdGuardHome
   /etc/init.d/AdGuardHome restart
 fi
-if [ "$( opkg list-installed 2>/dev/null| grep -c "^aria2")" -ne '0' ];then
+if has_package aria2;then
   uci set aria2.main.user='root'
   uci set aria2.main.config_dir='/etc/aria2'
   uci set aria2.main.log='/etc/aria2/log'
@@ -238,12 +247,12 @@ if [ "$( opkg list-installed 2>/dev/null| grep -c "^aria2")" -ne '0' ];then
   uci commit aria2
   /etc/init.d/aria2 restart
 fi
-if [ "$( opkg list-installed 2>/dev/null| grep -c "^dnsmasq")" -ne '0' ];then
+if has_package dnsmasq;then
   uci set dhcp.@dnsmasq[0].cachesize='0'
   uci commit dhcp
   /etc/init.d/dnsmasq restart
 fi
-if [ "$( opkg list-installed 2>/dev/null| grep -c "^luci-app-openclash")" -ne '0' ] && [ "$(uci show openclash|grep -c ".port='1745'")" -ne '2' ];then
+if has_package luci-app-openclash && [ "$(uci show openclash|grep -c ".port='1745'")" -ne '2' ];then
   if [ "$(grep -c "^代理规则(by 沉默の金)" /usr/share/openclash/res/rule_providers.list)" -eq '0' ];then
       sed -i '1i 代理规则(by 沉默の金),沉默の金,classical,chenmozhijin/OpenWrt-K/main/files/etc/openclash/rule_provider/,ProxyRule-chenmozhijin.yaml' "/usr/share/openclash/res/rule_providers.list"
   fi
@@ -253,7 +262,7 @@ if [ "$( opkg list-installed 2>/dev/null| grep -c "^luci-app-openclash")" -ne '0
   if [ "$(grep -c "^港澳台规则(by 沉默の金)" /usr/share/openclash/res/rule_providers.list)" -eq '0' ];then
       sed -i '1i 港澳台规则(by 沉默の金),沉默の金,classical,chenmozhijin/OpenWrt-K/main/files/etc/openclash/rule_provider/,HKMOTWRule-chenmozhijin.yaml' "/usr/share/openclash/res/rule_providers.list"
   fi
-  if [ "$( opkg list-installed 2>/dev/null| grep -c "^luci-app-adguardhome")" -ne '0' ];then
+  if has_package luci-app-adguardhome;then
     n=0
     while [ "$n" -lt $(uci show openclash|grep -c "^openclash.@dns_servers\[[0-9]\{1,10\}\]=dns_servers") ]; do
       uci set openclash.@dns_servers[$n].enabled='0'

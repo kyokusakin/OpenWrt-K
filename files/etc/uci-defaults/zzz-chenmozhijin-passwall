@@ -1,4 +1,13 @@
 #!/bin/sh
+
+has_package() {
+  if command -v apk >/dev/null 2>&1; then
+    apk info -e "$1" >/dev/null 2>&1
+  else
+    opkg list-installed 2>/dev/null | grep -Eq "^$1( - |$)"
+  fi
+}
+
 sleep 5
 [ ! -s "/etc/config/passwall" ] && sleep 5
 [ ! -s "/etc/config/passwall" ] && sleep 5
@@ -6,10 +15,10 @@ sleep 5
 [ ! -s "/etc/config/passwall" ] && sleep 5
 [ ! -s "/etc/config/passwall" ] && sleep 5
 [ ! -s "/etc/config/passwall" ] && cp -f /usr/share/passwall/0_default_config /etc/config/passwall
-if [ "$( opkg list-installed 2>/dev/null| grep -c "^luci-app-passwall - ")" -ne '0' ];then
+if has_package luci-app-passwall;then
 uci set passwall.@global[0].dns_mode='dns2tcp'
 uci set passwall.@global[0].tcp_proxy_mode='gfwlist'
-if [ "$( opkg list-installed 2>/dev/null| grep -c "^luci-app-adguardhome")" -ne '0' ];then
+if has_package luci-app-adguardhome;then
     uci set passwall.@global[0].tcp_node_socks_port='1070'
     uci set passwall.@global[0].remote_dns='127.0.0.1:1745'
 fi

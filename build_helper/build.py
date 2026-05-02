@@ -13,7 +13,7 @@ from actions_toolkit.github import Context
 from .utils.logger import logger
 from .utils.openwrt import ImageBuilder, OpenWrt
 from .utils.paths import paths
-from .utils.repo import del_cache, dl_artifact
+from .utils.repo import del_cache, dl_artifact, get_package_manager_info
 from .utils.upload import uploader
 from .utils.utils import hash_dirs, setup_env
 
@@ -165,6 +165,7 @@ def base_builds(cfg: dict) -> None:
 
 def build_packages(cfg: dict) -> None:
     openwrt = OpenWrt(os.path.join(paths.workdir, "openwrt"))
+    package_info = get_package_manager_info(cfg)
 
     logger.info("下载编译所需源码...")
     openwrt.download_source()
@@ -180,7 +181,7 @@ def build_packages(cfg: dict) -> None:
     os.makedirs(packages_path, exist_ok=True)
     for root, _dirs, files in os.walk(os.path.join(openwrt.path, "bin")):
         for file in files:
-            if file.endswith(".ipk"):
+            if file.endswith(package_info["package_ext"]):
                 shutil.copy2(os.path.join(root, file), packages_path)
                 logger.debug(f"复制 {file} 到 {packages_path}")
     uploader.add(f"packages-{cfg['name']}", packages_path, retention_days=1)
@@ -190,6 +191,7 @@ def build_packages(cfg: dict) -> None:
 
 def build_image_builder(cfg: dict) -> None:
     openwrt = OpenWrt(os.path.join(paths.workdir, "openwrt"))
+    package_info = get_package_manager_info(cfg)
 
     logger.info("修改配置(设置编译所有kmod/取消编译其他软件包/取消生成镜像/)...")
     openwrt.enable_kmods(cfg["compile"]["kmod_compile_exclude_list"], only_kmods=True)
@@ -234,7 +236,7 @@ def build_image_builder(cfg: dict) -> None:
     os.makedirs(kmods_path, exist_ok=True)
     for root, _dirs, files in os.walk(os.path.join(openwrt.path, "bin")):
         for file in files:
-            if file.startswith("kmod-") and file.endswith(".ipk"):
+            if file.startswith("kmod-") and file.endswith(package_info["package_ext"]):
                 shutil.copy2(os.path.join(root, file), kmods_path)
                 logger.debug(f"复制 {file} 到 {kmods_path}")
     uploader.add(f"kmods-{cfg['name']}", kmods_path, retention_days=1)

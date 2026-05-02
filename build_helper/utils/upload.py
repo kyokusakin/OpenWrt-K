@@ -32,7 +32,7 @@ class UpLoader:
             path = "\n".join(path)
         action = {
             "name": name,
-            "uses": "actions/upload-artifact@v4",
+            "uses": "actions/upload-artifact@v6",
             "with": {
                 "name": name,
                 "path": path,

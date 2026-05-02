@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 import contextlib
 import os
+import re
 from datetime import datetime, timedelta, timezone
 
 import github
@@ -75,6 +76,32 @@ def get_release_suffix(cfg: dict) -> tuple[str, str]:
     release_suffix = f"({cfg["target"]}-{cfg["subtarget"]})-[{cfg["compile"]["openwrt_tag/branch"]}]"
     tag_suffix = f"({cfg["target"]}-{cfg["subtarget"]})-({cfg["compile"]["openwrt_tag/branch"]})-{cfg["name"]}"
     return release_suffix, tag_suffix
+
+
+def parse_openwrt_branch_version(branch: str) -> tuple[int, int, int] | None:
+    match = re.match(r"^v?(?P<major>\d+)\.(?P<minor>\d+)(?:\.(?P<patch>\d+))?$", branch.strip())
+    if not match:
+        return None
+    return (
+        int(match.group("major")),
+        int(match.group("minor")),
+        int(match.group("patch") or 0),
+    )
+
+
+def get_package_manager_info(cfg: dict) -> dict[str, str]:
+    version = parse_openwrt_branch_version(cfg["compile"]["openwrt_tag/branch"])
+    if version is not None and version >= (25, 12, 0):
+        return {
+            "package_ext": ".apk",
+            "pkg_mgr": "apk",
+            "package_install_cmd": "apk add --allow-untrusted",
+        }
+    return {
+        "package_ext": ".ipk",
+        "pkg_mgr": "opkg",
+        "package_install_cmd": "opkg install",
+    }
 
 def new_release(cfg: dict, assets: list[str], body: str) -> None:
     release_suffix, tag_suffix = get_release_suffix(cfg)

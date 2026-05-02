@@ -212,6 +212,24 @@ def prepare(configs: dict[str, dict[str, Any]]) -> None:
             logger.info("%s处理完成", cfg_name)
 
 
+def disable_smartdns_hash_check(makefile_path: str) -> None:
+    """禁用 smartdns 源码和 smartdns-webui 的下载 hash 校验。"""
+    with open(makefile_path, encoding="utf-8") as f:
+        content = f.read()
+
+    updated = re.sub(r"^PKG_MIRROR_HASH:=.*$", "PKG_MIRROR_HASH:=skip", content, flags=re.MULTILINE)
+    updated = re.sub(r"^(\s*)MIRROR_HASH:=.*$", r"\1MIRROR_HASH:=skip", updated, flags=re.MULTILINE)
+
+    if updated == content:
+        logger.warning("未在 %s 中找到可替换的 smartdns hash 校验字段", makefile_path)
+        return
+
+    with open(makefile_path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(updated)
+
+    logger.info("已禁用 smartdns 下载 hash 校验: %s", makefile_path)
+
+
 def prepare_cfg(config: dict[str, Any],
                 cfg_name: str,
                 openwrt: OpenWrt,
@@ -233,6 +251,7 @@ def prepare_cfg(config: dict[str, Any],
                     os.path.join(openwrt.path, "feeds", "luci", "applications", "luci-app-smartdns"), symlinks=True)
     shutil.copytree(cloned_repos[("https://github.com/pymumu/openwrt-smartdns", "master")],
                     os.path.join(openwrt.path, "feeds", "packages", "net", "smartdns"), symlinks=True)
+    disable_smartdns_hash_check(os.path.join(openwrt.path, "feeds", "packages", "net", "smartdns", "Makefile"))
 
     logger.info("%s处理软件包...", cfg_name)
     for pkg_name, pkg in config["extpackages"].items():

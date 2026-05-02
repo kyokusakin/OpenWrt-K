@@ -34,7 +34,7 @@ jobs:
     name: 规划与准备
     steps:
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: 建立环境
         uses: ./.github/action/prepare
 
@@ -54,7 +54,7 @@ jobs:
       matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
     steps:
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: 建立环境
         uses: ./.github/action/prepare
 
@@ -64,7 +64,7 @@ jobs:
         run: python3 -m build_helper --task build-prepare --config ${{ matrix.config }}
 
       - name: 缓存toolchain
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: cache-toolchain
         if: ${{ steps.prepare.outputs.use-cache }}
         with:
@@ -74,7 +74,7 @@ jobs:
           key: ${{ steps.prepare.outputs.toolchain-key }}
 
       - name: 缓存ccache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         if: ${{ steps.prepare.outputs.use-cache }}
         with:
           path: ${{ steps.prepare.outputs.openwrt-path }}/.ccache
@@ -101,7 +101,7 @@ jobs:
       matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
     steps:
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: 建立环境
         uses: ./.github/action/prepare
 
@@ -111,7 +111,7 @@ jobs:
         run: python3 -m build_helper --task build-prepare --config ${{ matrix.config }}
 
       - name: 缓存ccache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         if: ${{ steps.prepare.outputs.use-cache }}
         with:
           path: ${{ steps.prepare.outputs.openwrt-path }}/.ccache
@@ -136,7 +136,7 @@ jobs:
       matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
     steps:
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: 建立环境
         uses: ./.github/action/prepare
 
@@ -146,7 +146,7 @@ jobs:
         run: python3 -m build_helper --task build-prepare --config ${{ matrix.config }}
 
       - name: 缓存ccache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         if: ${{ steps.prepare.outputs.use-cache }}
         with:
           path: ${{ steps.prepare.outputs.openwrt-path }}/.ccache
@@ -171,7 +171,7 @@ jobs:
       matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
     steps:
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: 建立环境
         uses: ./.github/action/prepare
 

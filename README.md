@@ -10,7 +10,8 @@
 ## 目录
 
 [README](https://github.com/chenmozhijin/OpenWrt-K#openwrt-k):
-1. [更新日志](https://github.com/chenmozhijin/OpenWrt-K#%E6%9B%B4%E6%96%B0%E6%97%A5%E5%BF%97) 
+
+1. [更新日志](https://github.com/chenmozhijin/OpenWrt-K#%E6%9B%B4%E6%96%B0%E6%97%A5%E5%BF%97)
 2. [固件介绍](https://github.com/chenmozhijin/OpenWrt-K#%E5%9B%BA%E4%BB%B6%E4%BB%8B%E7%BB%8D)
   
 [Wiki页面](https://github.com/chenmozhijin/OpenWrt-K/wiki):
@@ -21,11 +22,13 @@
 4. [常见问题](https://github.com/chenmozhijin/OpenWrt-K/wiki/%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98)
 
 ## 更新日志
+
 [2025/2/7]升级openwrt到v24.10.0,修复AdGuardHome规则下载错误导致其无法启动的问题,增减部分软件包
 <details><summary>增减列表</summary>
 
 1. 删除:passwall、passwall2、luci-app-rclone、luci-app-ddns、luci-app-aria2(你可以通过修改编译配置把他们加回来)
 2. 添加:luci-app-vlmcsd、luci-app-sqm、luci-app-qbittorrent
+
 </details>
 <details><summary>完整更新日志</summary>
 
@@ -55,8 +58,7 @@
   luci-app-firewall：防火墙  
   luci-app-netdata：[Netdata](https://github.com/netdata/netdata) 实时监控  
   [luci-app-netspeedtest](https://github.com/muink/luci-app-netspeedtest)：网速测试  
-  luci-app-nlbwmon：网络带宽监视器  
-  luci-app-opkg：软件包  
+  luci-app-nlbwmon：网络带宽监视器
   [luci-app-openclash](https://github.com/vernesong/OpenClash):可运行在 OpenWrt 上的 Clash 客户端  
   luci-app-samba4：samba网络共享  
   [luci-app-smartdns](https://github.com/pymumu/luci-app-smartdns)：SmartDNS 服务器  
@@ -64,8 +66,7 @@
   luci-app-ttyd：ttyd 终端  
   [luci-app-turboacc](https://github.com/chenmozhijin/turboacc)：Turbo ACC 网络加速  
   luci-app-upnp：通用即插即用（UPnP）  
-  luci-app-usb-printer：USB 打印服务器   
-  luci-app-webadmin：Web 管理页面设置  
+  luci-app-usb-printer：USB 打印服务器
   [luci-app-wechatpush](https://github.com/tty228/luci-app-wechatpush)：微信推送  
   luci-app-wol：网络唤醒  
   luci-app-zerotier：ZeroTier虚拟局域网
@@ -76,7 +77,7 @@
 1. 其他部分软件包：  
   ethtool-full：网卡工具用于查询及设置网卡参数  
   sudo：sudo命令支持  
-  htop：系统监控与进程管理软件    
+  htop：系统监控与进程管理软件
   cfdisk：磁盘分区工具  
   bc：一个命令行计算器  
   coremark：cpu跑分测试  
