@@ -84,7 +84,7 @@ if __name__ == "__main__":
                 logger.info("正在打包 openwrt 文件夹...")
                 with tarfile.open(os.path.join(tmp_dir.name, "openwrt.tar.gz"), "w:gz") as tar:
                     tar.add(openwrt_path, arcname="openwrt")
-                uploader.add(f"{Context().job}-{config.get("name") if config else ''}-openwrt-{time.time()}",
+                uploader.add(f"{Context().job}-{config.get('name') if config else ''}-openwrt-{time.time()}",
                              os.path.join(tmp_dir.name, "openwrt.tar.gz"), retention_days=90, compression_level=0)
 
         with open(os.path.join(errorinfo_path, "files.txt"), "w") as f:
@@ -93,7 +93,7 @@ if __name__ == "__main__":
                     f.write(f"{root}/{file}\n")
 
 
-        uploader.add(f"{Context().job}-{config.get("name") if config else ''}-errorinfo-{time.time()}", errorinfo_path, retention_days=90, compression_level=9)
+        uploader.add(f"{Context().job}-{config.get('name') if config else ''}-errorinfo-{time.time()}", errorinfo_path, retention_days=90, compression_level=9)
         uploader.save()
         if not debug:
             core.notice("已收集部分错误信息,更详细信息请Re-run jobs并启用debug logging")

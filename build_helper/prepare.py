@@ -230,6 +230,94 @@ def disable_smartdns_hash_check(makefile_path: str) -> None:
     logger.info("已禁用 smartdns 下载 hash 校验: %s", makefile_path)
 
 
+def fix_luci_qbittorrent_dependency(makefile_path: str) -> None:
+    """让 luci-app-qbittorrent 依赖实际编译的增强版 qBittorrent 包。"""
+    if not os.path.isfile(makefile_path):
+        logger.warning("未找到 luci-app-qbittorrent Makefile，跳过依赖修复: %s", makefile_path)
+        return
+
+    with open(makefile_path, encoding="utf-8") as f:
+        content = f.read()
+
+    updated = re.sub(
+        r"^LUCI_DEPENDS:=\+qbittorrent\s*$",
+        "LUCI_DEPENDS:=+qbittorrent-enhanced-edition",
+        content,
+        flags=re.MULTILINE,
+    )
+
+    if updated == content:
+        logger.debug("luci-app-qbittorrent 依赖无需修复: %s", makefile_path)
+        return
+
+    with open(makefile_path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(updated)
+
+    logger.info("已修复 luci-app-qbittorrent 依赖: qbittorrent -> qbittorrent-enhanced-edition")
+
+
+def get_linux_full_version(openwrt_path: str, kernel_version: str) -> str | None:
+    """读取 OpenWrt 当前内核完整版本，例如 6.12.85。"""
+    details_file = os.path.join(openwrt_path, "target", "linux", "generic", f"kernel-{kernel_version}")
+    if not os.path.isfile(details_file):
+        logger.warning("未找到内核版本文件: %s", details_file)
+        return None
+
+    with open(details_file, encoding="utf-8") as f:
+        for line in f:
+            match = re.match(rf"^LINUX_VERSION-{re.escape(kernel_version)}\s*=\s*(?P<suffix>\S+)\s*$", line)
+            if match:
+                suffix = match.group("suffix")
+                return f"{kernel_version}{suffix}" if suffix.startswith(".") else suffix
+    logger.warning("未能从 %s 读取内核完整版本", details_file)
+    return None
+
+
+def version_tuple(version: str | None) -> tuple[int, ...]:
+    if not version:
+        return ()
+    return tuple(int(part) for part in re.findall(r"\d+", version))
+
+
+def fix_turboacc_conntrack_patch_for_linux_6_12_85(patch_path: str) -> None:
+    """修复 turboacc 952 补丁在 Linux 6.12.85 上的 nf_conntrack_netlink.c hunk。"""
+    if not os.path.isfile(patch_path):
+        logger.warning("未找到 turboacc 952 补丁，跳过修复: %s", patch_path)
+        return
+
+    with open(patch_path, encoding="utf-8") as f:
+        content = f.read()
+
+    old_hunk = (
+        "@@ -3143,6 +3151,7 @@ errout:\n"
+        " \treturn 0;\n"
+        " }\n"
+        " #endif\n"
+        "+#endif\n"
+        " static int ctnetlink_exp_done(struct netlink_callback *cb)\n"
+        " {\n"
+        " \tif (cb->args[1])\n"
+    )
+    new_hunk = (
+        "@@ -3124,5 +3132,6 @@ errout:\n"
+        " \treturn 0;\n"
+        " }\n"
+        " #endif\n"
+        "+#endif\n"
+        " \n"
+        " static unsigned long ctnetlink_exp_id(const struct nf_conntrack_expect *exp)\n"
+    )
+
+    if old_hunk not in content:
+        logger.debug("turboacc 952 补丁无需修复或格式已变更: %s", patch_path)
+        return
+
+    with open(patch_path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(content.replace(old_hunk, new_hunk, 1))
+
+    logger.info("已修复 turboacc 952 补丁以兼容 Linux 6.12.85+")
+
+
 def prepare_cfg(config: dict[str, Any],
                 cfg_name: str,
                 openwrt: OpenWrt,
@@ -258,12 +346,21 @@ def prepare_cfg(config: dict[str, Any],
         path = os.path.join(openwrt.path, "package", "cmzj_packages", pkg_name)
         pkg_path = os.path.join(cloned_repos[(pkg["REPOSITORIE"], pkg["BRANCH"])], pkg["PATH"])
         if not os.path.exists(pkg_path):
-            msg = f"找不到{cfg_name}配置中的拓展软件包: {pkg_name} ,这可能是由于仓库 {pkg["REPOSITORIE"]} 目录结构变更导致的,请检查您的拓展软件包配置"
+            msg = f"找不到{cfg_name}配置中的拓展软件包: {pkg_name} ,这可能是由于仓库 {pkg['REPOSITORIE']} 目录结构变更导致的,请检查您的拓展软件包配置"
             raise FileNotFoundError(msg)
         logger.debug("复制拓展软件包 %s 到 %s", pkg_name, path)
         shutil.copytree(os.path.join(cloned_repos[(pkg["REPOSITORIE"], pkg["BRANCH"])], pkg["PATH"]), path, symlinks=True)
         if os.path.isdir(os.path.join(path, ".git")):
             shutil.rmtree(os.path.join(path, ".git"))
+
+    if "luci-app-qbittorrent" in config["extpackages"] and "qBittorrent-Enhanced-Edition" in config["extpackages"]:
+        fix_luci_qbittorrent_dependency(os.path.join(
+            openwrt.path,
+            "package",
+            "cmzj_packages",
+            "luci-app-qbittorrent",
+            "Makefile",
+        ))
 
     # 替换golang版本
     golang_path = os.path.join(openwrt.path, "feeds", "packages", "lang", "golang")
@@ -279,17 +376,24 @@ def prepare_cfg(config: dict[str, Any],
 
     # 添加turboacc补丁
     turboacc_dir = os.path.join(cloned_repos[("https://github.com/chenmozhijin/turboacc", "package")])
-    kernel_version = openwrt.get_kernel_version()
+    kernel_version = openwrt.get_kernel_version() or ""
     enable_sfe = (openwrt.get_package_config("kmod-shortcut-fe") in ("y", "m") or
                openwrt.get_package_config("kmod-shortcut-fe-drv") in ("y", "m") or
                openwrt.get_package_config("kmod-shortcut-fe-cm") in ("y", "m") or
                openwrt.get_package_config("kmod-fast-classifier") in ("y", "m"))
     enable_fullcone = openwrt.get_package_config("kmod-nft-fullcone") in ("y", "m")
     if enable_fullcone or enable_sfe:
+        if not kernel_version:
+            msg = f"{cfg_name}无法获取内核版本"
+            raise RuntimeError(msg)
         logger.info("%s添加952补丁", cfg_name)
-        patch925 = f"952{"-add" if kernel_version != "5.10" else ""}-net-conntrack-events-support-multiple-registrant.patch"
-        shutil.copy2(os.path.join(turboacc_dir, f"hack-{kernel_version}", patch925),
-                     os.path.join(openwrt.path, "target", "linux", "generic", f"hack-{kernel_version}", patch925))
+        suffix = "-add" if kernel_version != "5.10" else ""
+        patch925 = f"952{suffix}-net-conntrack-events-support-multiple-registrant.patch"
+        patch925_path = os.path.join(openwrt.path, "target", "linux", "generic", f"hack-{kernel_version}", patch925)
+        shutil.copy2(os.path.join(turboacc_dir, f"hack-{kernel_version}", patch925), patch925_path)
+        linux_full_version = get_linux_full_version(openwrt.path, kernel_version)
+        if version_tuple(linux_full_version) >= (6, 12, 85):
+            fix_turboacc_conntrack_patch_for_linux_6_12_85(patch925_path)
         logger.info("%s附加内核配置CONFIG_NF_CONNTRACK_CHAIN_EVENTS", cfg_name)
         with open(os.path.join(openwrt.path, "target", "linux", "generic", f"config-{kernel_version}"), "a") as f:
             f.write("\n# CONFIG_NF_CONNTRACK_CHAIN_EVENTS is not set")
@@ -427,7 +531,7 @@ def prepare_cfg(config: dict[str, Any],
             if line.startswith("  uci set aria2.main.bt_tracker="):
                 f.write(f"  uci set aria2.main.bt_tracker='{bt_tracker}'\n")
             elif line.startswith("uci set network.lan.ipaddr="):
-                f.write(f"uci set network.lan.ipaddr='{config["openwrtext"]["ipaddr"]}'\n")
+                f.write(f"uci set network.lan.ipaddr='{config['openwrtext']['ipaddr']}'\n")
             elif "Compiled by 沉默の金" in line:
                 f.write(line.replace("Compiled by 沉默の金", f"Compiled by {compiler}") + "\n")
             else:
@@ -443,15 +547,16 @@ def prepare_cfg(config: dict[str, Any],
             elif "set system.@system[-1].timezone='UTC'" in line:
                 f.write(line.replace("set system.@system[-1].timezone='UTC'",
                                      f"set system.@system[-1].timezone='{config['openwrtext']['timezone']}'") +
-                                     f"\n		set system.@system[-1].zonename='{config["openwrtext"]["zonename"]}'\n")
+                                     f"\n\t\tset system.@system[-1].zonename='{config['openwrtext']['zonename']}'\n")
             else:
                 f.write(line + "\n")
 
     config["target"], config["subtarget"] = openwrt.get_target()
 
     with open(os.path.join(openwrt.files, "etc", "openwrt-k_info"), "w", encoding="utf-8") as f:
+        compile_start_time = datetime.now(timezone(timedelta(hours=8))).strftime("%y.%m.%d-%H")
         content = ""
-        content += f'COMPILE_START_TIME="{datetime.now(timezone(timedelta(hours=8))).strftime('%y.%m.%d-%H')}"\n'
+        content += f'COMPILE_START_TIME="{compile_start_time}"\n'
         content += f'COMPILER="{compiler}"\n'
         content += f'REPOSITORY_URL="https://github.com/{user_repo}"\n'
         content += f'TAG_SUFFIX="{get_release_suffix(config)[1]}"\n'

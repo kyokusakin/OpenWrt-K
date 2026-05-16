@@ -159,7 +159,7 @@ class OpenWrt(OpenWrtBase):
                     if line.startswith('CONFIG_LINUX_'):
                         match = re.match(r'^CONFIG_LINUX_(?P<major>[0-9]+)_(?P<minor>[0-9]+)=y$', line)
                         if match:
-                            kernel_version = f"{match.group("major")}.{match.group("minor")}"
+                            kernel_version = f"{match.group('major')}.{match.group('minor')}"
                             break
         logger.debug("配置%s的内核版本为%s", self.path, kernel_version)
         return kernel_version

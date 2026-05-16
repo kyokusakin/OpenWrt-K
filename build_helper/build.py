@@ -29,7 +29,7 @@ def get_cache_restore_key(openwrt: OpenWrt, cfg: dict) -> str:
     else:
         msg = "Invalid job"
         raise ValueError(msg)
-    cache_restore_key = f"{job_prefix}-{cfg["compile"]["openwrt_tag/branch"]}-{cfg["name"]}"
+    cache_restore_key = f"{job_prefix}-{cfg['compile']['openwrt_tag/branch']}-{cfg['name']}"
     target, subtarget = openwrt.get_target()
     if target:
         cache_restore_key += f"-{target}"
@@ -47,7 +47,7 @@ def prepare(cfg: dict) -> None:
     tmpdir = paths.get_tmpdir()
 
     logger.info("还原openwrt源码...")
-    path = dl_artifact(f"openwrt-source-{cfg["name"]}", tmpdir.name)
+    path = dl_artifact(f"openwrt-source-{cfg['name']}", tmpdir.name)
     with zipfile.ZipFile(path, "r") as zip_ref:
         zip_ref.extract("openwrt-source.tar.gz", tmpdir.name)
     with tarfile.open(os.path.join(tmpdir.name, "openwrt-source.tar.gz"), "r") as tar_ref:
@@ -56,7 +56,7 @@ def prepare(cfg: dict) -> None:
 
     if context.job == "base-builds":
         logger.info("构建toolchain缓存key...")
-        toolchain_key = f"toolchain-{hash_dirs((os.path.join(openwrt.path, "tools"), os.path.join(openwrt.path, "toolchain")))}"
+        toolchain_key = f"toolchain-{hash_dirs((os.path.join(openwrt.path, 'tools'), os.path.join(openwrt.path, 'toolchain')))}"
         target, subtarget = openwrt.get_target()
         if target:
             toolchain_key += f"-{target}"
@@ -74,7 +74,7 @@ def prepare(cfg: dict) -> None:
             tar.extractall(openwrt.path)  # noqa: S202
 
     elif context.job == "build-images-releases":
-        ib_path = dl_artifact(f"Image_Builder-{cfg["name"]}", tmpdir.name)
+        ib_path = dl_artifact(f"Image_Builder-{cfg['name']}", tmpdir.name)
         with zipfile.ZipFile(ib_path, "r") as zip_ref:
             ext = "zst" if "openwrt-imagebuilder.tar.zst" in zip_ref.namelist() else "xz"
             zip_ref.extract(f"openwrt-imagebuilder.tar.{ext}", tmpdir.name)
@@ -157,7 +157,7 @@ def base_builds(cfg: dict) -> None:
     with tarfile.open(tar_path, "w:gz") as tar:
         tar.add(os.path.join(openwrt.path, "staging_dir"), arcname="staging_dir")
         tar.add(os.path.join(openwrt.path, "build_dir"), arcname="build_dir")
-    uploader.add(f"base-builds-{cfg["name"]}", tar_path, retention_days=1, compression_level=0)
+    uploader.add(f"base-builds-{cfg['name']}", tar_path, retention_days=1, compression_level=0)
 
     logger.info("删除旧缓存...")
     del_cache(get_cache_restore_key(openwrt, cfg))
